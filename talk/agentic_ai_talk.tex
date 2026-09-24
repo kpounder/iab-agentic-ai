@@ -37,6 +37,11 @@
 \newcommand{\tcall}[1]{\textcolor{cyan!70!white}{#1}}
 \newcommand{\tbad}[1]{\textcolor{red!60!white}{#1}}
 \newcommand{\tgood}[1]{\textcolor{green!60!white}{#1}}
+% Fake blur: stack faint offset copies of the text.
+\newcommand{\blurred}[1]{\begin{tikzpicture}
+  \foreach \r in {1.3,2.6,3.9}{\foreach \a in {0,45,...,315}{
+    \node[opacity=0.11,inner sep=0,align=left,font=\ttfamily\small] at (\a:\r pt) {#1};}}
+\end{tikzpicture}}
 \lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,language=Python}
 
 \title{Demystifying Agentic AI}
@@ -164,7 +169,30 @@ def median(xs):
 \end{frame}
 
 % ---------------------------------------------------------------- Part 2
+\begin{frame}{What is a tool? An example first: \texttt{read\_file}}
+  \small
+  \texttt{read\_file} is a function $f$ that takes a path (given as JSON) as input and returns a string:
+  \[
+    f : \textcolor{actc}{\texttt{\{"path": string\}}} \longrightarrow \textcolor{obsc}{\texttt{string}}
+  \]
+  \vspace{-4pt}
+  \[
+    f\big(\textcolor{actc}{\texttt{\{"path": "stats.py"\}}}\big) = \textcolor{obsc}{\texttt{"def median(xs): \ldots"}}
+  \]
+
+  \onslide<2->{%
+  \centering
+  \begin{tikzpicture}
+    \node[draw=greyc,rounded corners,thick,inner sep=8pt] (d) {\blurred{def read\_file(path):\\
+\ \ \ \ with open(path) as fh:\\
+\ \ \ \ \ \ \ \ return fh.read()}};
+    \node[anchor=west,text width=4.2cm,align=left,font=\footnotesize,text=greyc] at ($(d.east)+(0.4,0)$)
+      {The LLM does not see (and does not care to see) how $f$ is defined.};
+  \end{tikzpicture}}
+\end{frame}
+
 \begin{frame}{What is a tool?}
+  A tool is an ``interface'' to a function, i.e., 
   \begin{small}
   \[
     \tau = \Big(\ \underbrace{\textcolor{actc}{\text{name},\ S}}_{\textcolor{actc}{\text{interface --- sent to the model}}}\ ,\ \ \underbrace{\textcolor{greyc}{f}}_{\textcolor{greyc}{\text{implementation --- host-only}}}\ \Big)
@@ -173,14 +201,13 @@ def median(xs):
   \vspace{-6pt}
   \begin{footnotesize}
   \begin{itemize}\setlength{\itemsep}{1pt}
-    \item The \textcolor{actc}{interface} $(\text{name}, S)$ is what the model reads and calls against; $S$ is the \emph{schema} (a JSON Schema)
-    \item The \textcolor{greyc}{implementation} $f : S \to \mathcal{Y}$ is what runs, on the host, never sent to the model
+    \item The \textcolor{actc}{interface} $(\text{name}, S)$ is what the model reads and calls against. The tool has a name and $S$ is the \emph{schema} (usually a JSON Schema). 
+    \item The \textcolor{greyc}{implementation} $f : S \to \mathcal{Y}$ is what runs, on the host, and is never sent to the model.
     \item $\mathcal{X}$: all possible arguments ($S \subseteq \mathcal{X}$, the valid ones). $\mathcal{Y}$: all possible results.
   \end{itemize}
   \end{footnotesize}
   \vfill
-  \footnotesize The model writes down a call from the interface alone. The host checks $x \in S$, then runs $f$. If $x \notin S$, it returns an error message instead.\\[2pt]
-  {\scriptsize\color{greyc} The literature calls this a ``function interface to an external program'' (Wang et al., 2024).}
+  \footnotesize The model writes down a call from the interface alone. The host checks $x \in S$, then runs $f$. If $x \notin S$, it returns an error message instead.
 \end{frame}
 
 \begin{frame}{Let's fill it in: $\tau = \texttt{edit\_file}$}
@@ -194,23 +221,18 @@ def median(xs):
   \begin{tabular}{@{}l P{9.6cm}@{}}
     $S$ & \alt<2->{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}}{\color{greyc}?} \\[6pt]
     $f$ & \alt<3->{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message}{\color{greyc}?} \\[6pt]
-    $\mathcal{Y}$ & \alt<4->{text}{\color{greyc}?} \\
+    $\mathcal{Y}$ & \alt<4->{string}{\color{greyc}?} \\
   \end{tabular}
 \end{frame}
 
 \begin{frame}{Tools in the example}
   \small
-  \onslide<1->{\footnotesize\color{greyc} What does each tool return? Guess, then click.}
-  \vspace{4pt}
-
   \begin{tabular}{@{}l P{3.6cm} P{3.4cm} P{3.4cm}@{}}
     \textbf{name} & \textbf{$S$: allowed arguments} & \textbf{$f$: what the host does} & \textbf{result in $\mathcal{Y}$} \\ \hline
-    \rule{0pt}{12pt}\texttt{read\_file} & a path (string) & reads the file & \alt<2->{its text}{\color{greyc}?} \\[3pt]
-    \texttt{run\_tests} & none, or a path & runs the test suite & \alt<3->{pass/fail summary, traceback}{\color{greyc}?} \\[3pt]
-    \texttt{edit\_file} & a path, the old text, the new text & replaces old with new & \alt<4->{``ok'' or an error message}{\color{greyc}?} \\
+    \rule{0pt}{12pt}\texttt{read\_file} & a path (string) & reads the file & its contents (a string) \\[3pt]
+    \texttt{run\_tests} & none, or a path & runs the test suite & pass/fail summary, traceback \\[3pt]
+    \texttt{edit\_file} & a path, the old text, the new text & replaces old with new & ``ok'' or an error message \\
   \end{tabular}
-  \vfill
-  \onslide<4->{\footnotesize $S$ checks only the \emph{shape} of the arguments. Whether \texttt{old\_text} occurs in the file is checked when $f$ runs, and a failure comes back as an ordinary result in $\mathcal{Y}$. $T=\{\tau_1,\dots,\tau_k\}$ denotes the agent's set of tools.}
 \end{frame}
 
 \begin{frame}{What the LLM sees and can do}
