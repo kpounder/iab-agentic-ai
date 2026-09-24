@@ -1,5 +1,5 @@
 % Demystifying Agentic AI: Tool Calling, Skills, and Modern Architecture
-% Part 1 (motivating examples) and Part 2 (formalization), plus backup slides.
+% Part 1 (motivating examples) and Part 2 (formalization).
 % Compile with: pdflatex agentic_ai_talk.tex   (run twice)
 % Red [TODO: ...] tags mark content to replace with captured runs before the talk.
 
@@ -37,7 +37,6 @@
 \newcommand{\tcall}[1]{\textcolor{cyan!70!white}{#1}}
 \newcommand{\tbad}[1]{\textcolor{red!60!white}{#1}}
 \newcommand{\tgood}[1]{\textcolor{green!60!white}{#1}}
-\newcommand{\shot}[1]{\vfill{\raggedleft\footnotesize\color{greyc} illustrative transcript, real tool output \quad #1/5\par}}
 \lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,language=Python}
 
 \title{Demystifying Agentic AI}
@@ -94,7 +93,6 @@ def median(xs):
     \tdim{\ \ assert 3 == 2.5 \ \ (median([4, 1, 3, 2]) is 3)}\\
     \tdim{\ \ 1 failed, 2 passed}
   }
-  \shot{1}
 \end{frame}
 
 \begin{frame}{A coding agent at work}
@@ -107,7 +105,6 @@ def median(xs):
     \tdim{\ \ \ \ \ \ n = len(xs)}\\
     \tdim{\ \ \ \ \ \ return xs[n // 2]}
   }
-  \shot{2}
 \end{frame}
 
 \begin{frame}{A coding agent at work}
@@ -123,7 +120,6 @@ def median(xs):
     \tcall{\ \ \ \ \ \ \ return xs[n // 2]")}\\
     \tbad{\ \ error: old\_text not found in stats.py}
   }
-  \shot{3}
 \end{frame}
 
 \begin{frame}{A coding agent at work}
@@ -138,7 +134,6 @@ def median(xs):
     \tcall{\ \ new\_text: "if n \% 2 == 0: ... return xs[n // 2]")}\\
     \tdim{\ \ ok}
   }
-  \shot{4}
 \end{frame}
 
 \begin{frame}{A coding agent at work}
@@ -151,7 +146,6 @@ def median(xs):
     \tdim{\ \ 3 passed}\\[6pt]
     $\bullet$ Fixed: median now averages the two middle values for even-length lists. All 3 tests pass.
   }
-  \shot{5}
 \end{frame}
 
 % Reveal: three players
@@ -171,31 +165,52 @@ def median(xs):
 
 % ---------------------------------------------------------------- Part 2
 \begin{frame}{What is a tool?}
+  \begin{small}
   \[
-    \tau = (\text{name},\, S,\, f), \qquad S \subseteq \mathcal{X}, \qquad f : S \to \mathcal{Y}
+    \tau = \Big(\ \underbrace{\textcolor{actc}{\text{name},\ S}}_{\textcolor{actc}{\text{interface --- sent to the model}}}\ ,\ \ \underbrace{\textcolor{greyc}{f}}_{\textcolor{greyc}{\text{implementation --- host-only}}}\ \Big)
   \]
-  \small
-  Our example, $\tau = \texttt{edit\_file}$:\\[4pt]
-  \begin{tabular}{@{}l P{10.6cm}@{}}
-    $\mathcal{X}$ & all argument objects: key--value pairs of strings (JSON) \\[3pt]
-    $S$ & objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text} \\[3pt]
-    $f$ & replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message \\[3pt]
-    $\mathcal{Y}$ & text \\
-  \end{tabular}
+  \end{small}
+  \vspace{-6pt}
+  \begin{footnotesize}
+  \begin{itemize}\setlength{\itemsep}{1pt}
+    \item The \textcolor{actc}{interface} $(\text{name}, S)$ is what the model reads and calls against; $S$ is the \emph{schema} (a JSON Schema)
+    \item The \textcolor{greyc}{implementation} $f : S \to \mathcal{Y}$ is what runs, on the host, never sent to the model
+    \item $\mathcal{X}$: all possible arguments ($S \subseteq \mathcal{X}$, the valid ones). $\mathcal{Y}$: all possible results.
+  \end{itemize}
+  \end{footnotesize}
   \vfill
-  The model sees $(\text{name}, S)$ and writes down a call. The host holds $f$: it checks $x \in S$, then runs $f$. If $x \notin S$, it returns an error message instead.
+  \footnotesize The model writes down a call from the interface alone. The host checks $x \in S$, then runs $f$. If $x \notin S$, it returns an error message instead.\\[2pt]
+  {\scriptsize\color{greyc} The literature calls this a ``function interface to an external program'' (Wang et al., 2024).}
+\end{frame}
+
+\begin{frame}{Let's fill it in: $\tau = \texttt{edit\_file}$}
+  \small
+  \textbf{In plain English:} ``\texttt{edit\_file(path, old\_text, new\_text)} replaces \texttt{old\_text} with \texttt{new\_text} in the file at \texttt{path}. If it can't, it says why.''
+  \vspace{4pt}
+
+  \onslide<1->{\footnotesize\color{greyc} What would you put in each blank? Call it out before the click.}
+  \vspace{6pt}
+
+  \begin{tabular}{@{}l P{9.6cm}@{}}
+    $S$ & \alt<2->{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}}{\color{greyc}?} \\[6pt]
+    $f$ & \alt<3->{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message}{\color{greyc}?} \\[6pt]
+    $\mathcal{Y}$ & \alt<4->{text}{\color{greyc}?} \\
+  \end{tabular}
 \end{frame}
 
 \begin{frame}{Tools in the example}
   \small
+  \onslide<1->{\footnotesize\color{greyc} What does each tool return? Guess, then click.}
+  \vspace{4pt}
+
   \begin{tabular}{@{}l P{3.6cm} P{3.4cm} P{3.4cm}@{}}
     \textbf{name} & \textbf{$S$: allowed arguments} & \textbf{$f$: what the host does} & \textbf{result in $\mathcal{Y}$} \\ \hline
-    \rule{0pt}{12pt}\texttt{read\_file} & a path (string) & reads the file & its text \\[3pt]
-    \texttt{run\_tests} & none, or a path & runs the test suite & pass/fail summary, traceback \\[3pt]
-    \texttt{edit\_file} & a path, the old text, the new text & replaces old with new & ``ok'' or an error message \\
+    \rule{0pt}{12pt}\texttt{read\_file} & a path (string) & reads the file & \alt<2->{its text}{\color{greyc}?} \\[3pt]
+    \texttt{run\_tests} & none, or a path & runs the test suite & \alt<3->{pass/fail summary, traceback}{\color{greyc}?} \\[3pt]
+    \texttt{edit\_file} & a path, the old text, the new text & replaces old with new & \alt<4->{``ok'' or an error message}{\color{greyc}?} \\
   \end{tabular}
   \vfill
-  $S$ checks only the \emph{shape} of the arguments. Whether \texttt{old\_text} occurs in the file is checked when $f$ runs, and a failure comes back as an ordinary result in $\mathcal{Y}$. $T=\{\tau_1,\dots,\tau_k\}$ denotes the agent's set of tools.
+  \onslide<4->{\footnotesize $S$ checks only the \emph{shape} of the arguments. Whether \texttt{old\_text} occurs in the file is checked when $f$ runs, and a failure comes back as an ordinary result in $\mathcal{Y}$. $T=\{\tau_1,\dots,\tau_k\}$ denotes the agent's set of tools.}
 \end{frame}
 
 \begin{frame}{What the LLM sees and can do}
@@ -210,15 +225,15 @@ def median(xs):
     \end{aligned}
   \]
   \small
-  \textbf{Can choose} an action $a_t \in A = \{\text{answer}(m)\} \cup \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}$:
+  \textbf{Can choose} an action $a_t \in A = \{\text{answer}(m)\} \cup \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}$.\quad \onslide<1>{\footnotesize\color{greyc} What's an example of one?}
   \vspace{4pt}
 
   \footnotesize
-  \begin{tabular}{@{}l l@{}}
+  \onslide<2->{\begin{tabular}{@{}l l@{}}
     \textcolor{actc}{\texttt{call(edit\_file, \{path: "stats.py", \ldots\})}} & run a tool $\tau$ on arguments $x$ \\[2pt]
     \textcolor{actc}{\texttt{call(run\_tests, \{\})}} & run a tool $\tau$ on arguments $x$ \\[2pt]
     \textcolor{actc}{\texttt{answer("Fixed median; 3 tests pass.")}} & reply to the user with text $m$, and stop \\
-  \end{tabular}
+  \end{tabular}}
   \vfill
   {\color{greyc} $H$ is the set of all such histories; $x$ can be any argument object in $\mathcal{X}$.}
 \end{frame}
@@ -244,16 +259,6 @@ def median(xs):
 \end{frame}
 
 \begin{frame}{The loop}
-  \small
-  \[
-    o(\tau, x) = \begin{cases} f_\tau(x) & x \in S_\tau \\ \text{an error message} & \text{otherwise} \end{cases}
-  \]
-  \[
-    h_{t+1} = h_t \frownop \big(a_t,\ o(\tau, x)\big) \ \text{ if } a_t = \text{call}(\tau, x)
-  \]
-  \[
-    \text{stop when } a_t = \text{answer}(m) \ \text{ or } \ t = N
-  \]
   \centering
   \begin{tikzpicture}[
       box/.style={draw,rounded corners,thick,minimum width=3.4cm,minimum height=1cm,align=center},
@@ -263,6 +268,22 @@ def median(xs):
     \draw[->,thick,actc] ([yshift=0.2cm]m.east) -- node[above,font=\footnotesize] {$\text{call}(\tau,x)$} ([yshift=0.2cm]h.west);
     \draw[->,thick,obsc] ([yshift=-0.2cm]h.west) -- node[below,font=\footnotesize] {result} ([yshift=-0.2cm]m.east);
   \end{tikzpicture}
+  \vspace{12pt}
+
+  \raggedright\small
+  The model samples an action. If it's a call, the host checks the schema, runs the tool (or returns an error), and the result goes back to the model. If it's an answer, the loop stops.
+\end{frame}
+
+\begin{frame}{The loop, precisely}
+  \[
+    o(\tau, x) = \begin{cases} f_\tau(x) & x \in S_\tau \\ \text{an error message} & \text{otherwise} \end{cases}
+  \]
+  \[
+    h_{t+1} = h_t \frownop \big(a_t,\ o(\tau, x)\big) \ \text{ if } a_t = \text{call}(\tau, x)
+  \]
+  \[
+    \text{stop when } a_t = \text{answer}(m) \ \text{ or } \ t = N
+  \]
   \vfill
   \raggedright\footnotesize
   $\frownop$ appends one entry to the end of the history. $h_0$ is the user's request. $N$ is a step budget.
@@ -270,86 +291,25 @@ def median(xs):
 
 \begin{frame}{The loop, on our example}
   \small
-  $h_0$ = ``The test suite is failing. Fix it.'' Each step appends one (action, result) pair.\\[6pt]
+  $h_0$ = ``The test suite is failing. Fix it.'' Each step appends one (action, result) pair. What does each step return?\\[4pt]
   \footnotesize
   \setlength{\tabcolsep}{4pt}\begin{tabular}{@{}c l l@{}}
     $t$ & \textcolor{actc}{action $a_t$} & \textcolor{obsc}{result $o(\tau,x)$} \\ \hline
     \rule{0pt}{11pt}0 & \texttt{call(run\_tests, \{\})} & 1 failed, 2 passed \\[2pt]
     1 & \texttt{call(read\_file, \{path: "stats.py"\})} & the source of \texttt{stats.py} \\[2pt]
-    2 & \texttt{call(edit\_file, \{old\_text: "return xs[n//2]", \ldots\})} & \textcolor{hilc}{error: old\_text not found} \\[2pt]
+    2 & \texttt{call(edit\_file, \{old\_text: "return xs[n//2]", \ldots\})} & \alt<2->{\textcolor{hilc}{error: old\_text not found}}{\color{greyc}?} \\[2pt]
     3 & \texttt{call(edit\_file, \{old\_text: "return xs[n // 2]", \ldots\})} & ok \\[2pt]
     4 & \texttt{call(run\_tests, \{\})} & 3 passed \\[2pt]
-    5 & \texttt{answer("Fixed median; 3 tests pass.")} & (loop stops) \\
-  \end{tabular}
-\end{frame}
-
-% ---------------------------------------------------------------- Part 3
-\begin{frame}{Be the policy (2.5 min)}
-  \begin{columns}[T]
-    \begin{column}{0.58\textwidth}
-      \footnotesize The history $h_2$ for a new bug:\\[3pt]
-      \begin{tikzpicture}
-        \node[fill=termbg,rounded corners=4pt,inner sep=5pt,text=white,text width=7.3cm,align=left,font=\ttfamily\scriptsize] {
-          \tgood{>} Fix the failing tests.\\[2pt]
-          \tcall{run\_tests()}\\
-          \tdim{\ \ FAILED test\_one, test\_zero}\\
-          \tdim{\ \ where True = is\_prime(1)}\\
-          \tdim{\ \ where True = is\_prime(0)}\\
-          \tdim{\ \ 2 failed, 2 passed}\\[2pt]
-          \tcall{read\_file("numtheory.py")}\\
-          \tdim{\ \ def is\_prime(n):}\\
-          \tdim{\ \ \ \ for d in range(2, int(n ** 0.5) + 1):}\\
-          \tdim{\ \ \ \ \ \ if n \% d == 0:}\\
-          \tdim{\ \ \ \ \ \ \ \ return False}\\
-          \tdim{\ \ \ \ return True}
-        };
-      \end{tikzpicture}
-    \end{column}
-    \begin{column}{0.40\textwidth}
-      \footnotesize \textbf{What should $a_2$ be? Vote.}\\[3pt]
-      \begin{tabular}{@{}l P{3.8cm}@{}}
-        (a) & \texttt{\scriptsize call(run\_tests, \{\})}\\
-        \multicolumn{2}{@{}l@{}}{\uncover<2->{\color{greyc}\quad repeats what we know; wastes a step}}\\[1pt]
-        (b) & \texttt{\scriptsize call(edit\_file, \{path: "numtheory.py", \ldots\})}\\
-        \multicolumn{2}{@{}l@{}}{\uncover<2->{\color{greyc}\quad reasonable: adds the missing $n<2$ case}}\\[1pt]
-        (c) & \texttt{\scriptsize call(edit\_file, \{path: "test\_numtheory.py", \ldots\})}\\
-        \multicolumn{2}{@{}l@{}}{\uncover<2->{\color{hilc}\quad passes without fixing the code}}\\[1pt]
-        (d) & \texttt{\scriptsize answer("The tests are wrong.")}\\
-        \multicolumn{2}{@{}l@{}}{\uncover<2->{\color{greyc}\quad not supported by the history}}\\
-      \end{tabular}
-    \end{column}
-  \end{columns}
-  \vspace{2pt}
-  \uncover<2->{\footnotesize The room's votes are an estimate of $\pi(\cdot \mid h_2)$.}
-\end{frame}
-
-\begin{frame}{Be the host (2.5 min)}
-  \footnotesize
-  You are the host. The tool is $\tau = \texttt{edit\_file}$, with $S$ = objects with keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}, all strings. The file is \texttt{numtheory.py} from the last slide. For each call, what is $o(\tau, x)$?\\[8pt]
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}c l l@{}}
-    & \textbf{call} & \onslide<2->{\textbf{$o(\tau,x)$}} \\ \hline
-    \rule{0pt}{11pt}1 & \parbox[t]{7.6cm}{\texttt{\scriptsize old\_text: "for d in range(2, int(n ** 0.5) + 1):",\\ new\_text: "\ldots"}} & \onslide<2->{\texttt{\scriptsize ok}} \\[7pt]
-    2 & \parbox[t]{7.6cm}{\texttt{\scriptsize old\_text: "for d in range(2, int(n**0.5) + 1):",\\ new\_text: "\ldots"}} & \onslide<2->{\parbox[t]{4.6cm}{\textcolor{hilc}{\texttt{\scriptsize error: old\_text not found in numtheory.py}}}} \\[7pt]
-    3 & \parbox[t]{7.6cm}{\texttt{\scriptsize old\_text: "return True"}\\ {\scriptsize (no \texttt{new\_text} key)}} & \onslide<2->{\parbox[t]{4.6cm}{\textcolor{hilc}{\texttt{\scriptsize error: invalid arguments for edit\_file (expected keys: path, old\_text, new\_text)}}}} \\[7pt]
-    4 & \parbox[t]{7.6cm}{\texttt{\scriptsize old\_text: "return",\\ new\_text: "yield"}} & \onslide<2->{\parbox[t]{4.6cm}{\textcolor{hilc}{\texttt{\scriptsize error: old\_text occurs 2 times in numtheory.py}}}} \\
-  \end{tabular}
-  \vfill
-  {\color{greyc} In every call, path is "numtheory.py".}
-\end{frame}
-
-\begin{frame}{Debrief (1 min)}
-  \begin{enumerate}
-    \item Where did the \emph{choosing} happen, and where did the \emph{checking} happen?\\
-      {\small\color{greyc} the policy $\pi$ versus the schema $S$ and the function $f$}
-    \item Call 3 was rejected before $f$ ran. Why is it still useful that the model sees that error?\\
-      {\small\color{greyc} errors are observations, so the loop can recover}
-    \item If \texttt{edit\_file} could also delete files, what would you change?\\
-      {\small\color{greyc} a scoped tool set $T_t \subseteq T$}
-  \end{enumerate}
+    5 & \texttt{answer("Fixed median; 3 tests pass.")} & \alt<3->{(loop stops)}{\color{greyc}?} \\
+  \end{tabular}\\[4pt]
+  \only<2>{\footnotesize\color{greyc} Step 2's old\_text looks right -- what actually happens?}%
+  \only<3>{\footnotesize\color{greyc} Step 5 is an answer. Does the loop take another step?}%
 \end{frame}
 
 % ---------------------------------------------------------------- Part 4
+% Optional: cut this whole part first if the talk is running long.
+% If cut, keep the Takeaways slide to its current two items (below) rather
+% than re-adding a skills bullet without having covered it.
 \begin{frame}[fragile]{What is a skill?}
   \begin{columns}[T]
     \begin{column}{0.38\textwidth}
@@ -388,10 +348,6 @@ description: Use when asked to fix
     \item<2-> \textbf{A task arrives} (``fix the failing tests''): the description matches, so the agent reads \texttt{SKILL.md} with an ordinary file-read call.
     \item<2-> \textbf{Now} the instructions are in its context. It may also run the bundled script, another ordinary tool call.
   \end{itemize}
-  \vfill
-  \uncover<2->{\begin{block}{}
-    A tool is something the agent can \emph{do}. A skill is something it \emph{knows how to do well}.
-  \end{block}}
 \end{frame}
 
 \begin{frame}{Why load on demand}
@@ -410,92 +366,16 @@ description: Use when asked to fix
   \textbf{Scoping.} At each step the agent sees only $T_t \subseteq T$: fewer ways to be wrong, and least privilege.
 \end{frame}
 
-% ---------------------------------------------------------------- Part 5
-\begin{frame}{MCP: one protocol instead of $N\cdot M$ integrations}
-  \centering
-  \begin{tikzpicture}[
-      host/.style={draw=actc,thick,rounded corners,minimum width=1.2cm,minimum height=0.55cm,font=\scriptsize},
-      tool/.style={draw=obsc,thick,rounded corners,minimum width=1.2cm,minimum height=0.55cm,font=\scriptsize},
-      hub/.style={draw=greyc,thick,fill=greyc!12,rounded corners,minimum width=1.7cm,minimum height=2.9cm,font=\bfseries\small},
-    ]
-    \foreach \i in {1,2,3,4} {
-      \node[host] (lh\i) at (0,{-0.75*\i}) {Host \i};
-      \node[tool] (lt\i) at (3.6,{-0.75*\i}) {Tool \i};
-      \node[host] (rh\i) at (7.2,{-0.75*\i}) {Host \i};
-      \node[tool] (rt\i) at (11.4,{-0.75*\i}) {Tool \i};
-    }
-    \foreach \i in {1,2,3,4} {
-      \foreach \j in {1,2,3,4} {
-        \draw[greyc!55] (lh\i.east) -- (lt\j.west);
-      }
-    }
-    \node[hub] (hub) at (9.3,-1.875) {MCP};
-    \foreach \i in {1,2,3,4} {
-      \draw[greyc] (rh\i.east) -- (rh\i.east -| hub.west);
-      \draw[greyc] (rt\i.west) -- (rt\i.west -| hub.east);
-    }
-    \node[font=\small] at (1.8,-4.0) {$N\cdot M = 16$ integrations};
-    \node[font=\small] at (9.3,-4.0) {$N+M = 8$ implementations};
-  \end{tikzpicture}
-
-  \vspace{6pt}
-  {\small Each AI application implements one side of a shared protocol once, and each tool implements the other side once. For $N=5$ and $M=8$: $40 \to 13$.}
-\end{frame}
-
 % ---------------------------------------------------------------- Wrap-up
 \begin{frame}{Takeaways}
   \begin{enumerate}
     \item An agent is a model in a loop: it emits structured calls, the host validates and runs them, and the results go back into the history.
     \item Reliability is a design problem: precise schemas, small scoped tool sets, and verification steps (like rerunning the tests) make errors easier to catch.
-    \item Skills and MCP are architecture, not magic: skills load know-how on demand, and a shared protocol turns $N\cdot M$ integrations into $N+M$.
   \end{enumerate}
 \end{frame}
 
 \begin{frame}[standout]
-  Questions?\\[14pt]
-  {\footnotesize [TODO: add links (MCP specification, exercise handout) and contact info]}
-\end{frame}
-
-% ---------------------------------------------------------------- Backup
-\appendix
-
-\begin{frame}[fragile]{Backup: the median bug and its fix}
-  \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      {\footnotesize\color{greyc} before}
-\begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
-def median(xs):
-    xs = sorted(xs)
-    n = len(xs)
-    return xs[n // 2]
-\end{lstlisting}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      {\footnotesize\color{greyc} after}
-\begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
-def median(xs):
-    xs = sorted(xs)
-    n = len(xs)
-    if n % 2 == 0:
-        return (xs[n // 2 - 1]
-                + xs[n // 2]) / 2
-    return xs[n // 2]
-\end{lstlisting}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-\begin{frame}[fragile]{Backup: exercise answer key}
-  Fix: add the $n<2$ case. All 4 tests pass afterward.
-\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
-def is_prime(n):
-    if n < 2:
-        return False
-    for d in range(2, int(n ** 0.5) + 1):
-        if n % d == 0:
-            return False
-    return True
-\end{lstlisting}
+  Questions?
 \end{frame}
 
 \end{document}
