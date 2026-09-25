@@ -72,7 +72,7 @@
 }}
 
 \title{Demystifying Agentic AI}
-\subtitle{Tool Calling, Skills, and Modern Architecture}
+\subtitle{Tool Calling and Agentic Architecture}
 \author{Kyle Pounder \and Toby Shearman}
 \institute{IAB Fall Meeting \\ University of Arizona}
 \date{}
@@ -265,17 +265,21 @@ def median(xs):
 
 \section{The Loop}
 
-\begin{frame}[fragile]{So we have tools. Now what?}
+\begin{frame}[fragile,t]{So we have tools. Now what?}
+  \vspace{12pt}
   \begin{columns}[c]
-    \begin{column}{0.44\textwidth}
-      \raggedright
-      {\large\textbf{How do we build an agent around that?}}\\[12pt]
-      \onslide<2->{\normalsize\textbf{Build a loop!}\\[12pt]
-      \small At every step it needs to answer two questions:\\[6pt]
+    \begin{column}{0.48\textwidth}
+      \raggedright\small
+      \textbf{We have:}\\[2pt]
+      \textbullet~\textbf{Tools}: functions a host can execute\\[1pt]
+      \textbullet~\textbf{LLM}: $\text{string} \to \text{string}$\\[8pt]
+      {\normalsize\textbf{How do we build an agent around them?}}\\[6pt]
+      \onslide<2->{\normalsize\textbf{Build a loop!}\\[4pt]
+      \small At every step, answer:\\[4pt]
       \normalsize\textcolor{obsc}{\textbf{What do I know?}}\\[2pt]
       \textcolor{actc}{\textbf{What do I do?}}}
     \end{column}
-    \begin{column}{0.54\textwidth}
+    \begin{column}{0.50\textwidth}
 \begin{lstlisting}[language={},basicstyle=\ttfamily\scriptsize,columns=fullflexible,keepspaces=true,breaklines=false,frame=none,emph={read_file,run_tests,edit_file},emphstyle=\color{actc}]
 [
   {"name": "read_file",
@@ -337,7 +341,7 @@ def median(xs):
 
 \begin{frame}{What do I do?}
   \footnotesize
-  \textbf{Tools:} \texttt{read\_file}, \texttt{run\_tests}, \texttt{edit\_file}, \textcolor{greyc}{\ldots},\quad \textbf{or} answer the user.\\[8pt]
+  \textbf{The only options:} call a tool (\texttt{read\_file}, \texttt{run\_tests}, \texttt{edit\_file}, \textcolor{greyc}{\ldots}) \textbf{or} answer the user.\\[8pt]
   \centering
   {\footnotesize Probability of each next action, given the context $h_2$ from before}\\[4pt]
   \begin{tikzpicture}[x=1cm,y=-0.55cm]
@@ -347,7 +351,7 @@ def median(xs):
         2/{call(run\_tests, \{\})}/0.10,
         3/{call(read\_file, \{path: "stats.py"\})}/0.06,
         4/{answer("Found the bug in median.")}/0.03,
-        5/{\rmfamily everything else}/0.01} {
+        5/{other calls to these tools or other answers}/0.01} {
       \node[anchor=east,font=\ttfamily\scriptsize] at (0,\i) {\lab};
       \fill[actc] (0.15,\i-0.2) rectangle ({0.15+5*\pr},\i+0.2);
       \node[anchor=west,font=\footnotesize] at ({0.25+5*\pr},\i) {\pr};
@@ -359,27 +363,28 @@ def median(xs):
   \onslide<2->{\textcolor{hilc}{Same tool, different arguments: different actions.} Choosing the tool and writing its arguments is one choice.}
 \end{frame}
 
-\begin{frame}{What do I do?}
-  An \textbf{action} is one of two kinds:
-  \[
-    A = \{\text{answer}(m) : m \text{ a message}\} \ \cup\ \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}
-  \]
-  \footnotesize
-  \begin{tabular}{@{}l l@{}}
-    $\text{call}(\tau, x)$ & ask the host to run tool $\tau$ on arguments $x$; the loop continues \\[2pt]
-    $\text{answer}(m)$ & reply to the user with the text $m$; the loop stops \\
-  \end{tabular}
-
-  \normalsize
-  \vspace{6pt}
-  \onslide<2->{The \textbf{policy} is the LLM:
-  \[
-    \pi : H \to \Delta(A), \qquad a_t \sim \pi(\cdot \mid h_t)
-  \]}
-  \vfill
-  \raggedright\footnotesize\color{greyc}
-  \onslide<2->{$\Delta(A)$: probability distributions on $A$. Note $x \in \mathcal{X}$, not $S_\tau$: the model can write invalid arguments. $\pi$ is fixed; we only sample from it.}
-\end{frame}
+% Formal "What do I do?" slide: commented out (distracting in the talk).
+% \begin{frame}{What do I do?}
+%   An \textbf{action} is one of two kinds:
+%   \[
+%     A = \{\text{answer}(m) : m \text{ a message}\} \ \cup\ \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}
+%   \]
+%   \footnotesize
+%   \begin{tabular}{@{}l l@{}}
+%     $\text{call}(\tau, x)$ & ask the host to run tool $\tau$ on arguments $x$; the loop continues \\[2pt]
+%     $\text{answer}(m)$ & reply to the user with the text $m$; the loop stops \\
+%   \end{tabular}
+%
+%   \normalsize
+%   \vspace{6pt}
+%   \onslide<2->{The \textbf{policy} is the LLM:
+%   \[
+%     \pi : H \to \Delta(A), \qquad a_t \sim \pi(\cdot \mid h_t)
+%   \]}
+%   \vfill
+%   \raggedright\footnotesize\color{greyc}
+%   \onslide<2->{$\Delta(A)$: probability distributions on $A$. Note $x \in \mathcal{X}$, not $S_\tau$: the model can write invalid arguments. $\pi$ is fixed; we only sample from it.}
+% \end{frame}
 
 \begin{frame}{Putting it together}
   \begin{columns}[c]
@@ -445,126 +450,6 @@ def median(xs):
       f_{\texttt{delegate}}(x) = m \quad \text{where} \quad \underbrace{h_0' = (\ldots,\ x)}_{\text{a fresh loop}} \ \rightsquigarrow\ \text{answer}(m)
     \]
     {\color{greyc} How do sub-agents affect the context?}
-  \end{itemize}
-\end{frame}
-
-% ---------------------------------------------------------------- Part 4
-% Optional: cut this whole part first if the talk is running long.
-% If cut, keep the Takeaways slide to its current two items (below) rather
-% than re-adding a skills bullet without having covered it.
-\section{Skills}
-
-\begin{frame}{What is a skill?}
-  A skill is a set of written instructions the agent reads when a task calls for them:
-  \begin{small}
-  \[
-    \sigma = \Big(\ \underbrace{\textcolor{actc}{\text{name},\ \text{description}}}_{\textcolor{actc}{\text{always in the history}}}\ ,\ \ \underbrace{\textcolor{obsc}{\text{body}}}_{\textcolor{obsc}{\text{read only when needed}}}\ \Big)
-  \]
-  \end{small}
-  \vspace{-6pt}
-  \begin{footnotesize}
-  \begin{itemize}\setlength{\itemsep}{2pt}
-    \item<1-> \textbf{Session start:} the host puts every skill's name and one-line description into $h_0$, next to the user's request.
-    \item<2-> \textbf{A task matches a description:} the model reads the body with an ordinary tool call,
-      \[
-        h_{t+1} = h_t \frownop \big(\textcolor{actc}{\text{call}(\texttt{read\_file}, \{\text{path}: \texttt{".../SKILL.md"}\})},\ \textcolor{obsc}{\text{body}}\big)
-      \]
-    \item<3-> \textbf{From then on,} the instructions are part of what the model reads on every step. If they mention a bundled script, the model runs it the same way it runs any tool.
-  \end{itemize}
-  \end{footnotesize}
-\end{frame}
-
-\begin{frame}{A tool vs.\ a skill}
-  \footnotesize
-  \setlength{\tabcolsep}{5pt}
-  \begin{tabular}{@{}P{3cm} P{4.9cm} P{4.9cm}@{}}
-     & \textbf{Tool} $\tau = (\text{name}, S, f)$ & \textbf{Skill} $\sigma = (\text{name}, \text{desc}, \text{body})$ \\ \hline
-    \rule{0pt}{12pt}What it is & a function the host runs & text the model reads \\[3pt]
-    Written in & code & plain language (Markdown) \\[3pt]
-    Seen up front & name and schema $S$ & name and description \\[3pt]
-    What it changes & the actions $A$: adds $\text{call}(\tau, \cdot)$ & the history $h_t$: what $\pi$ conditions on \\[3pt]
-    Gives the agent & a new \emph{capability} & \emph{know-how} for using the ones it has \\
-  \end{tabular}
-  \vfill
-  \footnotesize\color{greyc} A tool is a new instrument; a skill is the manual for a job. A skill adds no new actions: reading it is a \texttt{read\_file} call.
-\end{frame}
-
-\begin{frame}[fragile]{Example: a skill for our task}
-  \begin{columns}[T]
-    \begin{column}{0.38\textwidth}
-      \small A folder with one Markdown file, plus optional scripts.
-\begin{lstlisting}[language={},basicstyle=\ttfamily\scriptsize,frame=none]
-fix-failing-tests/
-  SKILL.md
-\end{lstlisting}
-      \vspace{4pt}
-      \footnotesize
-      \textcolor{actc}{Name and description}: all the model sees until the task matches.\\[4pt]
-      \textcolor{obsc}{Body}: read only after that.
-    \end{column}
-    \begin{column}{0.60\textwidth}
-\begin{lstlisting}[language={},basicstyle=\ttfamily\scriptsize,escapechar=|]
-|\color{actc}---|
-|\color{actc}name: fix-failing-tests|
-|\color{actc}description: Use when asked to fix|
-|\color{actc}\ \ failing tests or a failing build.|
-|\color{actc}---|
-|\color{obsc}1. Run the full test suite first; read|
-|\color{obsc}\ \ \ the failure before opening any file.|
-|\color{obsc}2. Read the code under test, not just|
-|\color{obsc}\ \ \ the test.|
-|\color{obsc}3. Make the smallest change that fixes|
-|\color{obsc}\ \ \ the failure.|
-|\color{obsc}4. Do not edit a test to make it pass|
-|\color{obsc}\ \ \ unless asked.|
-|\color{obsc}5. Rerun the full suite, not just the|
-|\color{obsc}\ \ \ failing test.|
-|\color{obsc}6. Report what you changed and why.|
-\end{lstlisting}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-\begin{frame}{Why skills: context budget}
-  \small
-  Why not put every instruction in $h_0$? Because every token has a cost.\\[6pt]
-  $n$ skills, each with a description of $d$ tokens and a body of $c$ tokens; $k$ skills used:
-  \[
-    \underbrace{n(d+c)}_{\text{load everything}} \quad\text{vs.}\quad \underbrace{nd + kc}_{\text{index, then load on demand}}
-  \]
-  Illustrative numbers: $n=50$, $d=50$, $c=2000$, $k=1$ gives $102{,}500$ versus $4{,}500$ tokens.
-  \vfill
-  \footnotesize\color{greyc} The history is bounded (the model's context window), and instructions for unrelated tasks can distract the model. On demand, the agent can have hundreds of skills installed and pay for the one it uses.
-\end{frame}
-
-\begin{frame}{Why skills: precision}
-  \small
-  A skill moves probability toward the steps you want.\\[2pt]
-  {\footnotesize $\pi(\cdot \mid h)$ right after reading \texttt{stats.py} \color{greyc}(made-up numbers)}\\[8pt]
-  \centering
-  \begin{tikzpicture}[x=1cm,y=-0.75cm]
-    \foreach \i/\lab/\p/\q in {0/{fix \texttt{median} in \texttt{stats.py}}/0.70/0.95, 1/{change the test to expect 3}/0.20/0.01, 2/{$\text{answer}(\text{``the test looks wrong''})$}/0.10/0.04} {
-      \node[anchor=east,font=\footnotesize] at (0,\i) {\lab};
-      \fill[greyc!60] (0.15,\i-0.3) rectangle ({0.15+5*\p},\i-0.03);
-      \node[anchor=west,font=\scriptsize,text=greyc] at ({0.25+5*\p},\i-0.165) {\p};
-      \only<2->{\fill[actc] (0.15,\i+0.03) rectangle ({0.15+5*\q},\i+0.3);
-      \node[anchor=west,font=\scriptsize,text=actc] at ({0.25+5*\q},\i+0.165) {\q};}
-    }
-    \fill[greyc!60] (6.2,-1.25) rectangle (6.45,-1.05); \node[anchor=west,font=\footnotesize,text=greyc] at (6.5,-1.15) {without skill};
-    \only<2->{\fill[actc] (6.2,-0.55) rectangle (6.45,-0.35); \node[anchor=west,font=\footnotesize,text=actc] at (6.5,-0.45) {with skill};}
-  \end{tikzpicture}
-  \vfill
-  \raggedright\footnotesize
-  \onslide<2->{Step 4 of the skill (``Do not edit a test to make it pass'') removes a shortcut the model would otherwise sometimes take. The skill encodes \emph{your} rules, which the model cannot infer from the code.}
-\end{frame}
-
-\begin{frame}{Why skills: more reasons}
-  \small
-  \begin{itemize}\setlength{\itemsep}{4pt}
-    \item \textbf{Anyone can write one.} It's plain language: a domain expert can write down how a job is done without writing code or retraining the model.
-    \item \textbf{Reusable and shareable.} A skill is a folder of files: version it, review it, and share it across a team and across agents.
-    \item \textbf{Exact steps can be code.} A skill can bundle a script, so a step that must be exact (a format check, a calculation) is run by the host instead of improvised by the model.
-    \item \textbf{Scoping.} A skill can also narrow which tools are allowed while it's active: fewer ways to be wrong, and least privilege.
   \end{itemize}
 \end{frame}
 
