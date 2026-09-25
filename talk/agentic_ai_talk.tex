@@ -10,6 +10,8 @@
 \usepackage{tikz,pgfplots}
 \usepackage{listings}
 \usepackage{array}
+\usepackage{soul}
+\soulregister{\texttt}{1}
 \newcolumntype{P}[1]{>{\raggedright\arraybackslash\setlength{\parskip}{0pt}\setlength{\parindent}{0pt}}p{#1}}
 \usetikzlibrary{arrows.meta,positioning,calc}
 \pgfplotsset{compat=1.16}
@@ -19,6 +21,7 @@
 \definecolor{obsc}{HTML}{B7791F}
 \definecolor{hilc}{HTML}{B3261E}
 \definecolor{greyc}{HTML}{6B7280}
+\colorlet{redactc}{greyc!25}
 
 \newcommand{\task}{\textcolor{greyc}{\textbf{Task}}}
 \newcommand{\ask}{\textcolor{actc}{\textbf{Model asks}}}
@@ -28,6 +31,10 @@
 
 % One row of the run trace: build step, tag, text, decision label.
 \newcommand{\trow}[4]{\visible<#1->{#2} & \visible<#1->{#3} & \visible<#1->{\itshape\footnotesize #4} \\[2pt]}
+
+% Censor bar until overlay #1: the hidden answer #2 highlighted in its own colour, so the
+% bar follows the answer's baseline and line breaks and the layout doesn't move on reveal.
+\newcommand{\redact}[2]{\alt<#1>{#2}{\leavevmode{\sethlcolor{redactc}\color{redactc}\hl{#2}}}}
 
 \newcommand{\srow}[4]{\onslide<#1->{\texttt{\scriptsize\textcolor{actc}{#2}}} & \onslide<#1->{\textcolor{obsc}{#3}} & \onslide<#1->{\itshape #4} \\[6pt]}
 
@@ -85,7 +92,6 @@ FAILED test_stats.py::test_median_even
 \begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
 def mean(xs):
     return sum(xs) / len(xs)
-
 
 def median(xs):
     xs = sorted(xs)
@@ -229,9 +235,9 @@ def median(xs):
   \vspace{6pt}
 
   \begin{tabular}{@{}l P{9.6cm}@{}}
-    $S$ & \alt<2->{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}}{\color{greyc}?} \\[6pt]
-    $f$ & \alt<3->{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message}{\color{greyc}?} \\[6pt]
-    $\mathcal{Y}$ & \alt<4->{string}{\color{greyc}?} \\
+    $S$ & \redact{2-}{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}} \\[6pt]
+    $f$ & \redact{3-}{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message} \\[6pt]
+    $\mathcal{Y}$ & \redact{4-}{string} \\
   \end{tabular}
 \end{frame}
 
