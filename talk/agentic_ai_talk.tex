@@ -10,6 +10,8 @@
 \usepackage{tikz,pgfplots}
 \usepackage{listings}
 \usepackage{array}
+\usepackage{soul}
+\soulregister{\texttt}{1}
 \newcolumntype{P}[1]{>{\raggedright\arraybackslash\setlength{\parskip}{0pt}\setlength{\parindent}{0pt}}p{#1}}
 \usetikzlibrary{arrows.meta,positioning,calc}
 \pgfplotsset{compat=1.16}
@@ -19,6 +21,7 @@
 \definecolor{obsc}{HTML}{B7791F}
 \definecolor{hilc}{HTML}{B3261E}
 \definecolor{greyc}{HTML}{6B7280}
+\colorlet{redactc}{greyc!25}
 
 \newcommand{\task}{\textcolor{greyc}{\textbf{Task}}}
 \newcommand{\ask}{\textcolor{actc}{\textbf{Model asks}}}
@@ -28,6 +31,22 @@
 
 % One row of the run trace: build step, tag, text, decision label.
 \newcommand{\trow}[4]{\visible<#1->{#2} & \visible<#1->{#3} & \visible<#1->{\itshape\footnotesize #4} \\[2pt]}
+
+% Censor bar until overlay #1: the hidden answer #2 highlighted in its own colour, so the
+% bar follows the answer's baseline and line breaks and the layout doesn't move on reveal.
+\newcommand{\redact}[2]{\alt<#1>{#2}{\leavevmode{\sethlcolor{redactc}\color{redactc}\hl{#2}}}}
+
+% TikZ elements that appear from an overlay onward: [visible on=<3->].
+\tikzset{
+  invisible/.style={opacity=0,text opacity=0},
+  visible on/.style={alt={#1{}{invisible}}},
+  alt/.code args={<#1>#2#3}{\alt<#1>{\pgfkeysalso{#2}}{\pgfkeysalso{#3}}},
+}
+
+% Abridged model context: \ctx{\crow{role}{content} ...}; use \newline inside content.
+\newcommand{\ctx}[1]{\begin{tikzpicture}\node[fill=greyc!8,rounded corners=4pt,inner sep=6pt]{%
+  \scriptsize\setlength{\tabcolsep}{4pt}\begin{tabular}{@{}r P{10.9cm}@{}}#1\end{tabular}};\end{tikzpicture}}
+\newcommand{\crow}[2]{{\scriptsize\sffamily\color{greyc}#1} & {\ttfamily\scriptsize #2} \\[2pt]}
 
 \newcommand{\srow}[4]{\onslide<#1->{\texttt{\scriptsize\textcolor{actc}{#2}}} & \onslide<#1->{\textcolor{obsc}{#3}} & \onslide<#1->{\itshape #4} \\[6pt]}
 
@@ -43,6 +62,14 @@
     \node[opacity=0.11,inner sep=0,align=left,font=\ttfamily\small] at (\a:\r pt) {#1};}}
 \end{tikzpicture}}
 \lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,language=Python}
+
+% Section dividers: title-bar background with white text, for contrast.
+\AtBeginSection{{%
+  \setbeamercolor{background canvas}{use=frametitle,bg=frametitle.bg}%
+  \setbeamercolor{section title}{fg=white}%
+  \setbeamercolor{progress bar in section page}{use=progress bar,fg=progress bar.fg,bg=white!25!frametitle.bg}%
+  \frame[plain,c,noframenumbering]{\sectionpage}%
+}}
 
 \title{Demystifying Agentic AI}
 \subtitle{Tool Calling, Skills, and Modern Architecture}
@@ -77,7 +104,6 @@ FAILED test_stats.py::test_median_even
 \begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
 def mean(xs):
     return sum(xs) / len(xs)
-
 
 def median(xs):
     xs = sorted(xs)
@@ -159,7 +185,7 @@ def median(xs):
   \begin{tikzpicture}[
       box/.style={draw,rounded corners,thick,minimum width=4.1cm,minimum height=2.3cm,align=center,text width=3.7cm},
       >=Stealth]
-    \node[box,draw=actc] (m) {\textbf{\textcolor{actc}{An LLM}}\\[3pt]\small reads the history and chooses the next action};
+    \node[box,draw=actc] (m) {\textbf{\textcolor{actc}{An LLM}}\\[3pt]\small chooses the next action and constructs its arguments};
     \node[box,draw=greyc,right=0.7cm of m] (t) {\textbf{\textcolor{greyc}{Three tools}}\\[3pt]\small read\_file, run\_tests, edit\_file};
     \node[box,draw=obsc,right=0.7cm of t] (l) {\textbf{\textcolor{obsc}{A loop}}\\[3pt]\small runs the action, adds the result to the history, repeats};
   \end{tikzpicture}
@@ -169,6 +195,8 @@ def median(xs):
 \end{frame}
 
 % ---------------------------------------------------------------- Part 2
+\section{Tools}
+
 \begin{frame}{What is a tool? An example first: \texttt{read\_file}}
   \small
   \texttt{read\_file} is a function $f$ that takes a path (given as JSON) as input and returns a string:
@@ -219,9 +247,9 @@ def median(xs):
   \vspace{6pt}
 
   \begin{tabular}{@{}l P{9.6cm}@{}}
-    $S$ & \alt<2->{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}}{\color{greyc}?} \\[6pt]
-    $f$ & \alt<3->{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message}{\color{greyc}?} \\[6pt]
-    $\mathcal{Y}$ & \alt<4->{string}{\color{greyc}?} \\
+    $S$ & \redact{2-}{objects with exactly the keys \texttt{path}, \texttt{old\_text}, \texttt{new\_text}} \\[6pt]
+    $f$ & \redact{3-}{replace \texttt{old\_text} by \texttt{new\_text} in the file; return ``ok'' or an error message} \\[6pt]
+    $\mathcal{Y}$ & \redact{4-}{string} \\
   \end{tabular}
 \end{frame}
 
@@ -235,80 +263,155 @@ def median(xs):
   \end{tabular}
 \end{frame}
 
-\begin{frame}{What the LLM sees and can do}
-  \small
-  \textbf{Sees} a history $h_t \in H$: the user's request, then one (action, result) pair per step so far.
-  \footnotesize
-  \[
-    \begin{aligned}
-      h_2 = \Big( & \text{``The test suite is failing. Fix it.''}, \\
-      & \big(\textcolor{actc}{\texttt{call(run\_tests, \{\})}},\ \textcolor{obsc}{\text{``1 failed, 2 passed''}}\big), \\
-      & \big(\textcolor{actc}{\texttt{call(read\_file, \{path: "stats.py"\})}},\ \textcolor{obsc}{\text{``def median(xs): \ldots''}}\big) \Big)
-    \end{aligned}
-  \]
-  \small
-  \textbf{Can choose} an action $a_t \in A = \{\text{answer}(m)\} \cup \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}$.\quad \onslide<1>{\footnotesize\color{greyc} What's an example of one?}
-  \vspace{4pt}
+\section{The Loop}
 
-  \footnotesize
-  \onslide<2->{\begin{tabular}{@{}l l@{}}
-    \textcolor{actc}{\texttt{call(edit\_file, \{path: "stats.py", \ldots\})}} & run a tool $\tau$ on arguments $x$ \\[2pt]
-    \textcolor{actc}{\texttt{call(run\_tests, \{\})}} & run a tool $\tau$ on arguments $x$ \\[2pt]
-    \textcolor{actc}{\texttt{answer("Fixed median; 3 tests pass.")}} & reply to the user with text $m$, and stop \\
-  \end{tabular}}
-  \vfill
-  {\color{greyc} $H$ is the set of all such histories; $x$ can be any argument object in $\mathcal{X}$.}
+\begin{frame}[fragile]{So we have tools. Now what?}
+  \begin{columns}[c]
+    \begin{column}{0.44\textwidth}
+      \raggedright
+      {\large\textbf{How do we build an agent around that?}}\\[12pt]
+      \onslide<2->{\normalsize\textbf{Build a loop!}\\[12pt]
+      \small At every step it needs to answer two questions:\\[6pt]
+      \normalsize\textcolor{obsc}{\textbf{What do I know?}}\\[2pt]
+      \textcolor{actc}{\textbf{What do I do?}}}
+    \end{column}
+    \begin{column}{0.54\textwidth}
+\begin{lstlisting}[language={},basicstyle=\ttfamily\scriptsize,columns=fullflexible,keepspaces=true,breaklines=false,frame=none,emph={read_file,run_tests,edit_file},emphstyle=\color{actc}]
+[
+  {"name": "read_file",
+   "description": "Read a file.",
+   "input": {"path": "string"}},
+  {"name": "run_tests",
+   "description": "Run the test suite.",
+   "input": {"path?": "string"}},
+  {"name": "edit_file",
+   "description": "Replace text in a file.",
+   "input": {"path": "string",
+             "old_text": "string",
+             "new_text": "string"}},
+  ...
+]
+\end{lstlisting}
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{The LLM chooses}
-  \[
-    \pi : H \to \Delta(A), \qquad a_t \sim \pi(\cdot \mid h_t)
-  \]
-  \small
-  $\Delta(A)$ is the set of probability distributions over $A$. Given the history, the LLM puts a probability on every possible next action, and one is drawn at random ($\sim$).\\[8pt]
+\begin{frame}{What do I know?}
+  \small What the model receives on its next turn:\\[4pt]
   \centering
-  {\footnotesize $\pi(\cdot \mid h_2)$ for our example \color{greyc}(made-up numbers)}\\[4pt]
-  \begin{tikzpicture}[x=1cm,y=-0.62cm]
-    \foreach \i/\lab/\pr in {0/{$\text{call}(\texttt{edit\_file},\{\ldots\})$}/0.80, 1/{$\text{call}(\texttt{run\_tests},\{\})$}/0.10, 2/{$\text{call}(\texttt{read\_file},\{\ldots\})$}/0.07, 3/{everything else, incl.\ $\text{answer}(m)$}/0.03} {
-      \node[anchor=east,font=\footnotesize] at (0,\i) {\lab};
-      \fill[actc] (0.15,\i-0.22) rectangle ({0.15+5*\pr},\i+0.22);
+  \ctx{
+    \crow{system}{You are a coding agent working in this repository. \ldots}
+    \crow{tools}{read\_file(path) --- Read a file and return its contents.\newline
+                 run\_tests(path?) --- Run the test suite; return a summary.\newline
+                 edit\_file(path, old\_text, new\_text) --- Replace old\_text with new\_text.}
+    \crow{user}{The test suite is failing. Fix it.}
+    \crow{\textcolor{actc}{model}}{\textcolor{actc}{call(run\_tests, \{\})}}
+    \crow{\textcolor{obsc}{result}}{\textcolor{obsc}{FAILED test\_median\_even: assert 3 == 2.5. 1 failed, 2 passed}}
+    \crow{\textcolor{actc}{model}}{\textcolor{actc}{call(read\_file, \{path: "stats.py"\})}}
+    \crow{\textcolor{obsc}{result}}{\textcolor{obsc}{def median(xs): xs = sorted(xs); n = len(xs); return xs[n // 2] \ldots}}
+    \crow{\textcolor{actc}{model}}{\textcolor{greyc}{\rmfamily\itshape $\leftarrow$ writes its next action here}}
+  }
+
+  \raggedright\footnotesize
+  \vspace{4pt}
+  Each model turn is either a \textcolor{actc}{\texttt{call}} (run a tool, keep going) or an \textcolor{actc}{\texttt{answer}} (reply to the user, stop).
+\end{frame}
+
+\begin{frame}{What do I know?}
+  \textbf{Context:} a history of instructions, actions, and results. It starts as
+  \[
+    h_0 = \big(\text{system prompt},\ \{(\text{name}_\tau, S_\tau)\}_{\tau \in T},\ \text{user request}\big)
+  \]
+  and each step appends one (action, result) pair:
+  \[
+    h_{t+1} = h_t \frownop (\textcolor{actc}{a_t}, \textcolor{obsc}{o_t}),
+    \qquad
+    h_t = h_0 \frownop (\textcolor{actc}{a_0}, \textcolor{obsc}{o_0}) \frownop \cdots \frownop (\textcolor{actc}{a_{t-1}}, \textcolor{obsc}{o_{t-1}}) \in H
+  \]
+  \footnotesize\raggedright
+  \textcolor{actc}{$a_t$}: the model's action at step $t$. \textcolor{obsc}{$o_t$}: the tool's output for that action. $\frownop$ appends to the end. $H$: all possible histories.
+  \vfill
+  \small
+  \onslide<2->{\textbf{Conditioning:} the model's next choice depends on $h_t$ and nothing else. If it isn't in $h_t$, the model doesn't know it.}
+\end{frame}
+
+\begin{frame}{What do I do?}
+  \footnotesize
+  \textbf{Tools:} \texttt{read\_file}, \texttt{run\_tests}, \texttt{edit\_file}, \textcolor{greyc}{\ldots},\quad \textbf{or} answer the user.\\[8pt]
+  \centering
+  {\footnotesize Probability of each next action, given the context $h_2$ from before}\\[4pt]
+  \begin{tikzpicture}[x=1cm,y=-0.55cm]
+    \foreach \i/\lab/\pr in {
+        0/{call(edit\_file, \{old\_text: "return xs[n // 2]", \ldots\})}/0.55,
+        1/{call(edit\_file, \{old\_text: "return xs[n//2]", \ldots\})}/0.25,
+        2/{call(run\_tests, \{\})}/0.10,
+        3/{call(read\_file, \{path: "stats.py"\})}/0.06,
+        4/{answer("Found the bug in median.")}/0.03,
+        5/{\rmfamily everything else}/0.01} {
+      \node[anchor=east,font=\ttfamily\scriptsize] at (0,\i) {\lab};
+      \fill[actc] (0.15,\i-0.2) rectangle ({0.15+5*\pr},\i+0.2);
       \node[anchor=west,font=\footnotesize] at ({0.25+5*\pr},\i) {\pr};
     }
+    \draw[visible on=<2->,hilc,thick,rounded corners=3pt] (-8.3,-0.45) rectangle (3.9,1.45);
   \end{tikzpicture}
+
+  \raggedright\footnotesize
+  \onslide<2->{\textcolor{hilc}{Same tool, different arguments: different actions.} Choosing the tool and writing its arguments is one choice.}
+\end{frame}
+
+\begin{frame}{What do I do?}
+  An \textbf{action} is one of two kinds:
+  \[
+    A = \{\text{answer}(m) : m \text{ a message}\} \ \cup\ \{\text{call}(\tau, x) : \tau \in T,\ x \in \mathcal{X}\}
+  \]
+  \footnotesize
+  \begin{tabular}{@{}l l@{}}
+    $\text{call}(\tau, x)$ & ask the host to run tool $\tau$ on arguments $x$; the loop continues \\[2pt]
+    $\text{answer}(m)$ & reply to the user with the text $m$; the loop stops \\
+  \end{tabular}
+
+  \normalsize
+  \vspace{6pt}
+  \onslide<2->{The \textbf{policy} is the LLM:
+  \[
+    \pi : H \to \Delta(A), \qquad a_t \sim \pi(\cdot \mid h_t)
+  \]}
   \vfill
   \raggedright\footnotesize\color{greyc}
-  How $\pi$ learns to choose well comes from training; for this talk it is a black box we sample from.
+  \onslide<2->{$\Delta(A)$: probability distributions on $A$. Note $x \in \mathcal{X}$, not $S_\tau$: the model can write invalid arguments. $\pi$ is fixed; we only sample from it.}
 \end{frame}
 
-\begin{frame}{The loop}
-  \centering
-  \begin{tikzpicture}[
-      box/.style={draw,rounded corners,thick,minimum width=3.4cm,minimum height=1cm,align=center},
-      >=Stealth]
-    \node[box,draw=actc] (m) {LLM: sample $a_t \sim \pi(\cdot\mid h_t)$};
-    \node[box,draw=greyc,right=3.6cm of m] (h) {host: compute $o(\tau,x)$};
-    \draw[->,thick,actc] ([yshift=0.2cm]m.east) -- node[above,font=\footnotesize] {$\text{call}(\tau,x)$} ([yshift=0.2cm]h.west);
-    \draw[->,thick,obsc] ([yshift=-0.2cm]h.west) -- node[below,font=\footnotesize] {result} ([yshift=-0.2cm]m.east);
-  \end{tikzpicture}
-  \vspace{12pt}
-
-  \raggedright\small
-  The model samples an action. If it's a call, the host checks the schema, runs the tool (or returns an error), and the result goes back to the model. If it's an answer, the loop stops.
-\end{frame}
-
-\begin{frame}{The loop, precisely}
-  \[
-    o(\tau, x) = \begin{cases} f_\tau(x) & x \in S_\tau \\ \text{an error message} & \text{otherwise} \end{cases}
-  \]
-  \[
-    h_{t+1} = h_t \frownop \big(a_t,\ o(\tau, x)\big) \ \text{ if } a_t = \text{call}(\tau, x)
-  \]
-  \[
-    \text{stop when } a_t = \text{answer}(m) \ \text{ or } \ t = N
-  \]
-  \vfill
-  \raggedright\footnotesize
-  $\frownop$ appends one entry to the end of the history. $h_0$ is the user's request. $N$ is a step budget.
+\begin{frame}{Putting it together}
+  \begin{columns}[c]
+    \begin{column}{0.45\textwidth}
+      \centering
+      \begin{tikzpicture}[
+          box/.style={draw,rounded corners,thick,minimum width=2.9cm,minimum height=0.8cm,align=center,font=\footnotesize},
+          lab/.style={font=\scriptsize},
+          >=Stealth]
+        \node[box,draw=greyc] (h) {context $h_t$};
+        \node[box,draw=actc,below=0.9cm of h] (p) {LLM: $a_t \sim \pi(\cdot \mid h_t)$};
+        \node[box,draw=obsc,below=0.9cm of p,visible on=<3->] (o) {host: $o_t = o(\tau, x)$};
+        \node[box,draw=hilc,minimum width=1.1cm,right=1.1cm of p,visible on=<2->] (s) {stop};
+        \draw[->,thick] (h) -- (p);
+        \draw[->,thick,actc,visible on=<2->] (p) -- node[above,lab] {answer} (s);
+        \draw[->,thick,actc,visible on=<3->] (p) -- node[right,lab] {call$(\tau, x)$} (o);
+        \draw[->,thick,obsc,visible on=<4->] (o.west) -- ++(-0.5,0) coordinate (c)
+          -- node[midway,rotate=90,above,lab] {append $(a_t, o_t)$} (c |- h.west) -- (h.west);
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.55\textwidth}
+      \footnotesize
+      \begin{enumerate}
+        \item<1-> Sample an action: $a_t \sim \pi(\cdot \mid h_t)$.
+        \item<2-> If $a_t = \text{answer}(m)$: stop and return $m$.
+        \item<3-> If $a_t = \text{call}(\tau, x)$: the host returns
+          \[ o_t = \begin{cases} f_\tau(x) & x \in S_\tau \\ \text{an error message} & \text{otherwise} \end{cases} \]
+        \item<4-> Append: $h_{t+1} = h_t \frownop (a_t, o_t)$. Repeat.
+        \item<5-> Also stop when $t = N$, a step budget.
+      \end{enumerate}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \begin{frame}{The loop, on our example}
@@ -316,22 +419,41 @@ def median(xs):
   $h_0$ = ``The test suite is failing. Fix it.'' Each step appends one (action, result) pair. What does each step return?\\[4pt]
   \footnotesize
   \setlength{\tabcolsep}{4pt}\begin{tabular}{@{}c l l@{}}
-    $t$ & \textcolor{actc}{action $a_t$} & \textcolor{obsc}{result $o(\tau,x)$} \\ \hline
+    $t$ & \textcolor{actc}{action $a_t$} & \textcolor{obsc}{result $o_t$} \\ \hline
     \rule{0pt}{11pt}0 & \texttt{call(run\_tests, \{\})} & 1 failed, 2 passed \\[2pt]
     1 & \texttt{call(read\_file, \{path: "stats.py"\})} & the source of \texttt{stats.py} \\[2pt]
-    2 & \texttt{call(edit\_file, \{old\_text: "return xs[n//2]", \ldots\})} & \alt<2->{\textcolor{hilc}{error: old\_text not found}}{\color{greyc}?} \\[2pt]
-    3 & \texttt{call(edit\_file, \{old\_text: "return xs[n // 2]", \ldots\})} & ok \\[2pt]
-    4 & \texttt{call(run\_tests, \{\})} & 3 passed \\[2pt]
-    5 & \texttt{answer("Fixed median; 3 tests pass.")} & \alt<3->{(loop stops)}{\color{greyc}?} \\
+    2 & \texttt{call(edit\_file, \{old\_text: "return xs[n//2]", \ldots\})} & \textcolor{hilc}{\redact{2-}{error: old\_text not found}} \\[2pt]
+    \visible<3->{3} & \visible<3->{\texttt{call(edit\_file, \{old\_text: "return xs[n // 2]", \ldots\})}} & \visible<3->{ok} \\[2pt]
+    \visible<3->{4} & \visible<3->{\texttt{call(run\_tests, \{\})}} & \visible<3->{3 passed} \\[2pt]
+    \visible<3->{5} & \visible<3->{\texttt{answer("Fixed median; 3 tests pass.")}} & \visible<3->{\redact{4-}{(loop stops)}} \\
   \end{tabular}\\[4pt]
-  \only<2>{\footnotesize\color{greyc} Step 2's old\_text looks right -- what actually happens?}%
+  \only<1>{\footnotesize\color{greyc} Step 2's old\_text looks right -- what actually happens?}%
+  \only<2>{\footnotesize\color{greyc} $o_2$ is an error (the file has \texttt{xs[n // 2]}); it lands in $h_3$, and the loop continues.}%
   \only<3>{\footnotesize\color{greyc} Step 5 is an answer. Does the loop take another step?}%
+  \only<4>{\footnotesize\color{greyc} $a_5 = \text{answer}(m)$, so the loop stops and returns $m$. There is no $o_5$ and no $h_6$.}%
+\end{frame}
+
+\begin{frame}{Consequences}
+  \small
+  \begin{itemize}\setlength{\itemsep}{10pt}
+    \item<1-> \textbf{The context only grows.} Each step appends to $h_t$, but the model can only read a bounded amount. \textbf{Compaction} keeps $h_0$ and the last $k$ steps, and replaces the rest by a summary $s$ written by the LLM:
+    \[
+      h_t \ \longmapsto\ h_0 \frownop s \frownop (a_{t-k}, o_{t-k}) \frownop \cdots \frownop (a_{t-1}, o_{t-1})
+    \]
+    \item<2-> \textbf{Tools are simply side-effectful functions.} $f_\tau$ can do anything that ends in a result, including running another loop. A \emph{sub-agent} is one tool call, e.g.\ \texttt{call(delegate, \{task: "find every caller of median"\})}:
+    \[
+      f_{\texttt{delegate}}(x) = m \quad \text{where} \quad \underbrace{h_0' = (\ldots,\ x)}_{\text{a fresh loop}} \ \rightsquigarrow\ \text{answer}(m)
+    \]
+    {\color{greyc} How do sub-agents affect the context?}
+  \end{itemize}
 \end{frame}
 
 % ---------------------------------------------------------------- Part 4
 % Optional: cut this whole part first if the talk is running long.
 % If cut, keep the Takeaways slide to its current two items (below) rather
 % than re-adding a skills bullet without having covered it.
+\section{Skills}
+
 \begin{frame}{What is a skill?}
   A skill is a set of written instructions the agent reads when a task calls for them:
   \begin{small}
