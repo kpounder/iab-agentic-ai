@@ -44,6 +44,14 @@
 \end{tikzpicture}}
 \lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,language=Python}
 
+% Section dividers: title-bar background with white text, for contrast.
+\AtBeginSection{{%
+  \setbeamercolor{background canvas}{use=frametitle,bg=frametitle.bg}%
+  \setbeamercolor{section title}{fg=white}%
+  \setbeamercolor{progress bar in section page}{use=progress bar,fg=progress bar.fg,bg=white!25!frametitle.bg}%
+  \frame[plain,c,noframenumbering]{\sectionpage}%
+}}
+
 \title{Demystifying Agentic AI}
 \subtitle{Tool Calling, Skills, and Modern Architecture}
 \author{Kyle Pounder \and Toby Shearman}
@@ -159,7 +167,7 @@ def median(xs):
   \begin{tikzpicture}[
       box/.style={draw,rounded corners,thick,minimum width=4.1cm,minimum height=2.3cm,align=center,text width=3.7cm},
       >=Stealth]
-    \node[box,draw=actc] (m) {\textbf{\textcolor{actc}{An LLM}}\\[3pt]\small reads the history and chooses the next action};
+    \node[box,draw=actc] (m) {\textbf{\textcolor{actc}{An LLM}}\\[3pt]\small chooses the next action and constructs its arguments};
     \node[box,draw=greyc,right=0.7cm of m] (t) {\textbf{\textcolor{greyc}{Three tools}}\\[3pt]\small read\_file, run\_tests, edit\_file};
     \node[box,draw=obsc,right=0.7cm of t] (l) {\textbf{\textcolor{obsc}{A loop}}\\[3pt]\small runs the action, adds the result to the history, repeats};
   \end{tikzpicture}
@@ -169,6 +177,8 @@ def median(xs):
 \end{frame}
 
 % ---------------------------------------------------------------- Part 2
+\section{Tools}
+
 \begin{frame}{What is a tool? An example first: \texttt{read\_file}}
   \small
   \texttt{read\_file} is a function $f$ that takes a path (given as JSON) as input and returns a string:
@@ -234,6 +244,8 @@ def median(xs):
     \texttt{edit\_file} & a path, the old text, the new text & replaces old with new & ``ok'' or an error message \\
   \end{tabular}
 \end{frame}
+
+\section{The Loop}
 
 \begin{frame}{What the LLM sees and can do}
   \small
@@ -332,6 +344,8 @@ def median(xs):
 % Optional: cut this whole part first if the talk is running long.
 % If cut, keep the Takeaways slide to its current two items (below) rather
 % than re-adding a skills bullet without having covered it.
+\section{Skills}
+
 \begin{frame}{What is a skill?}
   A skill is a set of written instructions the agent reads when a task calls for them:
   \begin{small}
